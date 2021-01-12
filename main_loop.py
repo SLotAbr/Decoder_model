@@ -56,14 +56,18 @@ while True:
 		
 		text_example = ''.join(indexes_transform[i] for i in index_list)
 		print('--------\n %s \n--------' % (text_example, ))
-		print('iter %d, loss: %f, lr: %g' % (step_num, loss, lr))
+		print('iter %d, loss: %f' % (step_num, loss, ))
+		print('lr: ',lr)
 	
-	if loss < checkpoint_loss:
+	if loss <= checkpoint_loss:
 		checkpoint = step_num
 		checkpoint_loss = loss
-	elif (step_num - checkpoint) >= threshold:
-		lr/= 1e1
+	elif (step_num - checkpoint) > threshold:
+		lr/= 10
 		model.change_lr(lr)
+		print('lr has been reduced. New value: ', lr)
+		checkpoint = step_num
+		checkpoint_loss = loss
 
 	step_num += 1
 	s += context_size
