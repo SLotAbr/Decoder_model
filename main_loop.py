@@ -16,14 +16,15 @@ if len(os.listdir(path=save_folder))!=0:
 	with open(save_folder+'model_decription.pkl', 'rb') as f:
 		context_size, d_model, H, optim_param = pickle.load(f)
 	with open(save_folder+'iteration_param.pkl', 'rb') as f:
-		s, step_num, loss = pickle.load(f)
+		s, step_num, loss, lr = pickle.load(f)
 
 	model = Decoder_model(context_size, vocabulary_size, d_model, H, optim_param)
 	model.restore_parameters(save_folder)
 else:
 	s, step_num, loss = 0, 0, 0
 	context_size, d_model, H = 128, 128, 2
-	optim_param = [1e-6, 0.9, 0.98] # lr, b1, b2
+	lr = 1e-6
+	optim_param = [lr, 0.9, 0.98] # lr, b1, b2
 	with open(save_folder+'model_decription.pkl', 'wb') as f:
 		pickle.dump([context_size, d_model, H, optim_param], f)
 	model = Decoder_model(context_size, vocabulary_size, d_model, H, optim_param)
@@ -46,7 +47,7 @@ while True:
 	if step_num%1000==0:
 		model.save_parameters(save_folder)
 		with open(save_folder+'iteration_param.pkl', 'wb') as f:
-			pickle.dump([s, step_num, loss], f)
+			pickle.dump([s, step_num, loss, lr], f)
 
 		index_list=[np.random.randint(0, vocabulary_size)]
 		target_list=[]
