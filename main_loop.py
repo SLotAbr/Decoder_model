@@ -22,12 +22,15 @@ if len(os.listdir(path=save_folder))!=0:
 	model.restore_parameters(save_folder)
 else:
 	s, step_num, loss = 0, 0, 0
-	context_size, d_model, H = 512, 128, 2
-	optim_param = [1e-7, 0.9, 0.98] # lr, b1, b2
+	context_size, d_model, H = 128, 128, 2
+	optim_param = [1e-6, 0.9, 0.98] # lr, b1, b2
 	with open(save_folder+'model_decription.pkl', 'wb') as f:
 		pickle.dump([context_size, d_model, H, optim_param], f)
 	model = Decoder_model(context_size, vocabulary_size, d_model, H, optim_param)
 
+threshold = 45000
+checkpoint = step_num
+checkpoint_loss = 1e12
 print('preparation\'s complete!')
 
 while True:
@@ -47,12 +50,19 @@ while True:
 
 		index_list=[np.random.randint(0, vocabulary_size)]
 		target_list=[]
-		for l in range(199):
+		for l in range(127):
 			index_list.append(model.forward(index_list,target_list, phase='eval'))
 		
 		text_example = ''.join(indexes_transform[i] for i in index_list)
 		print('--------\n %s \n--------' % (text_example, ))
-		print('iter %d, loss: %f' % (step_num, loss))
-		
+		print('iter %d, loss: %f, lr: %g' % (step_num, loss, lr))
+	
+	if loss < checkpoint_loss:
+		checkpoint = step_num
+		checkpoint_loss = loss
+	elif (step_num - checkpoint) >= threshold:
+		lr/= 1e1
+		model.change_lr(lr)
+
 	step_num += 1
 	s += context_size
