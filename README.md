@@ -1,11 +1,14 @@
 # Decoder_model
-One decoder block model for language modelling
+Decoder model for language modelling
 
 Put your text in "input.txt" and use python 3.* + numpy framework for running Main_loop.py. Also remember about making "parameters" folder.
 
 Be careful with high learning rate: overflowing may occur in exp().
 
-I took some code snippets of Main_loop.py from Andrej Karpathy's [RNN_Char_Level.py](https://gist.github.com/karpathy/d4dee566867f8291f086). If you still haven't seen it or the original [article](https://karpathy.github.io/2015/05/21/rnn-effectiveness/), then I highly recommend that you do this before considering my creation: the article and the code have not just become very popular.
+I took some code snippets of Main_loop.py from Andrej Karpathy's [RNN_Char_Level.py](https://gist.github.com/karpathy/d4dee566867f8291f086). If you still haven't seen it or the original [article](https://karpathy.github.io/2015/05/21/rnn-effectiveness/), then I highly recommend do it: the article and the code have not just become very popular.
+
+# Some notes
+This architecture doesn't work efficiently on char-level: it's unclear, how to distribute attention between letters. The model achieves much better results on word-level modelling (Byte pair encode also can improve performance).
 
 # Some useful links
 - [Paper about original Transformer model](https://arxiv.org/abs/1706.03762)
@@ -16,5 +19,4 @@ I took some code snippets of Main_loop.py from Andrej Karpathy's [RNN_Char_Level
 - more efficient MH_attention_mechanism and LayerNorm for evaluation phase
 	(or STOP recalculating existing values for previous tokens!)
 - correspond module for eval phase in Decoder_model class
-- opportunity of picking more decoder blocks than one
 - multiprocessing feature for Circle operations (e.g. head's calculating)
