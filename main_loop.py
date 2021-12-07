@@ -5,17 +5,14 @@ from models import Decoder_model
 
 
 save_folder = 'parameters/'
-source = open('input.txt', 'r').read()
-source = source.split()
-alphabet = list(set(source))
-source_lenght, vocabulary_size = len(source), len(alphabet)
-letter_transform = { letter:i for i, letter in enumerate(alphabet) }
-indexes_transform = { i:letter for i, letter in enumerate(alphabet) }
 
-print('vocabulary_size: ', vocabulary_size)
 # if some files will be found in "save_folder" folder,
 # they will be used as the last checkpoint
 if len(os.listdir(path=save_folder))!=0:
+	with open(save_folder+'text_decription.pkl', 'rb') as f:
+		source, alphabet, \
+		source_lenght, vocabulary_size, \
+		letter_transform, indexes_transform = pickle.load(f)
 	with open(save_folder+'model_decription.pkl', 'rb') as f:
 		context_size, d_model, H, N, optim_param = pickle.load(f)
 	with open(save_folder+'iteration_param.pkl', 'rb') as f:
@@ -28,6 +25,20 @@ else:
 	context_size, d_model, H, N = 32, 64, 2, 3
 	lr = 1e-6
 	optim_param = [lr, 0.9, 0.98] # lr, b1, b2
+
+	source = open('input.txt', 'r').read()
+	alphabet = list(set(source))
+	source_lenght, vocabulary_size = len(source), len(alphabet)
+	letter_transform = { letter:i for i, letter in enumerate(alphabet) }
+	indexes_transform = { i:letter for i, letter in enumerate(alphabet) }
+	print('vocabulary_size: ', vocabulary_size)
+
+	with open(save_folder+'text_decription.pkl', 'wb') as f:
+		pickle.dump([source, alphabet
+					 source_lenght, 
+					 vocabulary_size, 
+					 letter_transform, 
+					 indexes_transform], f)
 	with open(save_folder+'model_decription.pkl', 'wb') as f:
 		pickle.dump([context_size, d_model, H, N, optim_param], f)
 	model = Decoder_model(context_size, vocabulary_size, d_model, H, N, optim_param)
