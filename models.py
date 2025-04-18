@@ -1,5 +1,5 @@
 '''
-One decoder-block model for language modelling. 
+Decoder model for language modelling. 
 Written by Danil Napad (https://github.com/SLotAbr).
 BSD License
 '''
@@ -14,15 +14,15 @@ class Decoder_model:
 		self.TE = nn.token_embedding(vocabulary_size, d_model, context_size, optim_param)
 		self.PE = positional_encoding(context_size, d_model)
 
-		self.W_attention = [0 for n in range(N)]
-		self.MH_attention = [0 for n in range(N)]
-		self.W_heads_projection = [0 for n in range(N)]
-		self.Attention_LayerNorm = [0 for n in range(N)]
+		self.W_attention = [None for n in range(N)]
+		self.MH_attention = [None for n in range(N)]
+		self.W_heads_projection = [None for n in range(N)]
+		self.Attention_LayerNorm = [None for n in range(N)]
 
-		self.W_FC1 = [0 for n in range(N)]
-		self.activation = [0 for n in range(N)]
-		self.W_FC2 = [0 for n in range(N)]
-		self.FC_LayerNorm = [0 for n in range(N)]
+		self.W_FC1 = [None for n in range(N)]
+		self.activation = [None for n in range(N)]
+		self.W_FC2 = [None for n in range(N)]
+		self.FC_LayerNorm = [None for n in range(N)]
 		for n in range(N):
 			self.W_attention[n] = nn.linear(d_model, d_model*3, optim_param)
 			self.MH_attention[n] = nn.MH_attention_mechanism(context_size, d_model, H)
@@ -34,7 +34,7 @@ class Decoder_model:
 			self.W_FC2[n] = nn.linear(d_model*4, d_model, optim_param)
 			self.FC_LayerNorm[n] = nn.LayerNormalization(context_size)
 
-		self.Output_token_probabilities = 0
+		self.Output_token_probabilities = None
 		self.context_size = context_size
 		self.N = N
 		self.vocabulary_size = vocabulary_size
@@ -79,7 +79,7 @@ class Decoder_model:
 		# index_list and target_list must be 1D array
 		# We use target_list only during train phase - so, 
 		# 	we can give empty target_list during eval phase
-		assert len(index_list)<=self.context_size,\
+		assert len(index_list) <= self.context_size,\
 			"The current realization does not support sequences bigger than train context_size"
 		# I remove it later, when the eficcient evaluation phase will complete
 		self.target_list = target_list
@@ -87,10 +87,10 @@ class Decoder_model:
 		# Output matrix have the same shape during training
 		X = self.TE(index_list)
 		if phase=='train':
-			X+= self.PE
+			X += self.PE
 			context_size = self.context_size
 		else:
-			X+= self.PE[:len(index_list)]
+			X += self.PE[:len(index_list)]
 			context_size = X.shape[0]
 
 		for n in range(self.N):
@@ -107,12 +107,12 @@ class Decoder_model:
 		X = self.TE.linear(X)
 		self.Output_token_probabilities = string_softmax(X, context_size)
 
-		if phase=='train':
+		if phase =='train':
 			loss_value=0
 			for i in range(len(target_list)):
 				loss_value -= np.log(self.Output_token_probabilities[i][target_list[i]])
 			return loss_value
-		else:
+		else: # phase == 'eval'
 			# return the indexes with highest probability for tokens in vocabulary
 			return np.argmax(self.Output_token_probabilities[-1]) #, axis=1)
 			# return np.random.choice(range(self.vocabulary_size), \
@@ -125,7 +125,7 @@ class Decoder_model:
 
 		dl, TE_grad = self.TE.linear_backward(dl)
 
-		for n in range(self.N):
+		for n in reversed(range(self.N)):
 			dl = self.FC_LayerNorm[n].backward(dl)
 			dl = self.W_FC2[n].backward(dl)
 			dl = self.activation[n].backward(dl)
@@ -139,6 +139,7 @@ class Decoder_model:
 			dl += self.residual_backprop
 
 		self.TE.update_weights(dl, TE_grad)
-		
+	
+	# ???
 	def evaluation(self):
 		pass

@@ -14,4 +14,4 @@ class AdaM:
 		self.v = (1-self.b2)*(dw**2) + self.b2*self.v
 		# print('m:\n',self.m)
 		# print('v:\n',self.v)
-		return w - self.lr* self.m/np.sqrt(self.v + 1e-9)
+		return w - self.lr * self.m/np.sqrt(self.v + 1e-9)

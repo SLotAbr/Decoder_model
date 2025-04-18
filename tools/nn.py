@@ -1,5 +1,5 @@
 '''
-Layers for NN-models (forward+backward pass).
+Layers for NN models (forward and backward passes).
 Written by Danil Napad (https://github.com/SLotAbr).
 BSD License
 '''
@@ -23,7 +23,7 @@ class token_embedding:
 		# form X matrix from tokens indexes
 		# We should use 2D array for further concatenation
 		self.input_indexes = index_list
-		context =[[self.TE_table[j] for j in index_list]]
+		context = [[self.TE_table[j] for j in index_list]]
 
 		return np.concatenate(context, axis=1)
 
@@ -32,7 +32,7 @@ class token_embedding:
 		# TE derivative have 2 parts - so, we'll get it by external source
 		dTE = np.zeros((self.vocabulary_size, self.d_model))
 		for i in range(self.context_size):
-			dTE[self.input_indexes[i]]+= dX[i]
+			dTE[self.input_indexes[i]] += dX[i]
 
 		dTE += dTE_linear
 		self.TE_table = self.optim.weights_update(self.TE_table, dTE)
@@ -123,22 +123,22 @@ class LayerNormalization:
 
 		x_mean = (x.mean(axis=1).reshape(1,context_size)).T
 		self.x_var = (x.var(axis=1).reshape(1,context_size)).T
-		return (x-x_mean)/np.sqrt(self.x_var+1e-12)
+		return (x-x_mean) / np.sqrt(self.x_var+1e-12)
 
 	def backward(self, dl):
 		l_mean = (dl.mean(axis=1).reshape(1,self.context_size)).T
-		return (dl - l_mean)/np.sqrt(self.x_var+1e-12)
+		return (dl-l_mean) / np.sqrt(self.x_var+1e-12)
 
 
 class MH_attention_mechanism:
 	def __init__(self, context_size, d_model, H):
-		self.d_k = 1/np.sqrt(d_model/H)
+		self.d_k = 1 / np.sqrt(d_model/H)
 		self.context_size = context_size
 		self.H = H
 		# matrix with 'True' values above the main diagonal
 		# We'll use it for replacing elements in dot product of Q and K
-		self.mask=(np.tril(np.ones((context_size, context_size)))==0)
-		self.backward_mask=np.tril(np.ones((context_size, context_size)))
+		self.mask = (np.tril(np.ones((context_size, context_size)))==0)
+		self.backward_mask = np.tril(np.ones((context_size, context_size)))
 
 	def __call__(self, x, phase='train'):
 		self.Q, self.K, self.V = np.split(x, 3, axis=1)
@@ -167,7 +167,7 @@ class MH_attention_mechanism:
 			else:
 				# We've got different context_size during evaluation
 				mask = (np.tril(np.ones((context_size, context_size)))==0)
-				C[h][mask]=-1e12
+				C[h][mask] = -1e12
 
 			self.S[h] = string_softmax(C[h], context_size)
 			# print('softmax\'s state:\n', self.S[h])

@@ -7,10 +7,15 @@ from models import Decoder_model
 save_folder = 'parameters/'
 if not os.path.exists(save_folder):
 	os.mkdir(save_folder)
+# TODO: remove it after code review
+checkpoint_files = os.listdir(path=save_folder)
+if len(checkpoint_files) != 0:
+    for file in checkpoint_files:
+        os.remove(save_folder + file)
 
 # if some files will be found in "save_folder" folder,
 # they will be used as the last checkpoint
-if len(os.listdir(path=save_folder))!=0:
+if len(os.listdir(path=save_folder)) != 0:
 	with open(save_folder+'text_decription.pkl', 'rb') as f:
 		source, alphabet, \
 		source_lenght, vocabulary_size, \
@@ -51,7 +56,8 @@ checkpoint_loss = 1e12
 print('preparation\'s complete!')
 
 while True:
-	if s+context_size+1 >= source_lenght or step_num == 0: s=0
+	if s+context_size+1 >= source_lenght or step_num == 0:
+		s=0
 
 	index_list = [letter_transform[letter] for letter in source[s:s+context_size]]
 	target_list = [letter_transform[letter] for letter in source[s+1:s+context_size+1]]
@@ -60,13 +66,13 @@ while True:
 	loss = loss * 0.999 + loss_value * 0.001
 	model.backward()
 
-	if step_num%1000==0:
+	if step_num%1000 == 0:
 		model.save_parameters(save_folder)
 		with open(save_folder+'iteration_param.pkl', 'wb') as f:
 			pickle.dump([s, step_num, loss, lr], f)
 
-		index_list=[np.random.randint(0, vocabulary_size)]
-		target_list=[]
+		index_list = [np.random.randint(0, vocabulary_size)]
+		target_list = []
 		for l in range(31):
 			index_list.append(model.forward(index_list,target_list, phase='eval'))
 		
@@ -79,7 +85,7 @@ while True:
 			checkpoint = step_num
 			checkpoint_loss = loss
 		elif (step_num - checkpoint) > threshold:
-			lr/= 10
+			lr /= 10
 			model.change_lr(lr)
 			print('lr has been reduced. New value: ', lr)
 			checkpoint = step_num
