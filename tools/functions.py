@@ -16,8 +16,8 @@ def positional_encoding(context_size, embedding_size):
 	return position_value
 
 
-def string_softmax(X, number_of_strings):
-	# print(np.max(X))
+def softmax2D(X):
+	# is working only with 2D matrices along the first dimenstion
 	X  = np.exp(X)
-	X /= (X.sum(axis=1).reshape(1, number_of_strings).T)
+	X /= X.sum(axis=1, keepdims=True)
 	return X

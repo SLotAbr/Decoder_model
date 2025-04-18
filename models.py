@@ -5,7 +5,7 @@ BSD License
 '''
 import numpy as np
 import tools.nn as nn
-from tools.functions import positional_encoding, string_softmax
+from tools.functions import positional_encoding, softmax2D
 from tools.optimizers import AdaM
 
 
@@ -105,7 +105,7 @@ class Decoder_model:
 			X = self.FC_LayerNorm[n](X + X_sublayer, phase)
 
 		X = self.TE.linear(X)
-		self.Output_token_probabilities = string_softmax(X, context_size)
+		self.Output_token_probabilities = softmax2D(X)
 
 		if phase =='train':
 			loss_value=0

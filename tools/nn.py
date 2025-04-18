@@ -6,7 +6,7 @@ BSD License
 # from multiprocessing import Process
 import numpy as np
 import pickle
-from tools.functions import string_softmax
+from tools.functions import softmax2D
 from tools.optimizers import AdaM as AdaM
 
 
@@ -121,12 +121,12 @@ class LayerNormalization:
 		else:
 			context_size = x.shape[0]
 
-		x_mean = (x.mean(axis=1).reshape(1,context_size)).T
-		self.x_var = (x.var(axis=1).reshape(1,context_size)).T
+		x_mean = x.mean(axis=1, keepdims=True)
+		self.x_var = x.var(axis=1, keepdims=True)
 		return (x-x_mean) / np.sqrt(self.x_var+1e-12)
 
 	def backward(self, dl):
-		l_mean = (dl.mean(axis=1).reshape(1,self.context_size)).T
+		l_mean = dl.mean(axis=1, keepdims=True)
 		return (dl-l_mean) / np.sqrt(self.x_var+1e-12)
 
 
@@ -169,7 +169,7 @@ class MH_attention_mechanism:
 				mask = (np.tril(np.ones((context_size, context_size)))==0)
 				C[h][mask] = -1e12
 
-			self.S[h] = string_softmax(C[h], context_size)
+			self.S[h] = softmax2D(C[h])
 			# print('softmax\'s state:\n', self.S[h])
 			Z[h] = self.S[h]@self.V[h]
 			# print('Z\'s state:\n', Z[h])
