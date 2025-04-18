@@ -5,6 +5,8 @@ from models import Decoder_model
 
 
 save_folder = 'parameters/'
+if not os.path.exists(save_folder):
+	os.mkdir(save_folder)
 
 # if some files will be found in "save_folder" folder,
 # they will be used as the last checkpoint
@@ -34,7 +36,7 @@ else:
 	print('vocabulary_size: ', vocabulary_size)
 
 	with open(save_folder+'text_decription.pkl', 'wb') as f:
-		pickle.dump([source, alphabet
+		pickle.dump([source, alphabet,
 					 source_lenght, 
 					 vocabulary_size, 
 					 letter_transform, 
