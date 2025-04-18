@@ -85,6 +85,7 @@ while True:
 		lr += lr_step
 	else:
 		lr -= lr_step
+	model.change_lr(lr)
 
 	step_num += 1
 	s += context_size
