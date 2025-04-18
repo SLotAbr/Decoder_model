@@ -135,11 +135,11 @@ class MH_attention_mechanism:
 		self.d_k = 1 / np.sqrt(d_model/H)
 		self.context_size = context_size
 		self.H = H
-		# matrix with 'True' values above the main diagonal
-		# We'll use it for replacing elements in dot product of Q and K
+		# A matrix with 'True' values above the main diagonal
+		# We'll use it later to replace elements in dot product of Q and K
 		self.mask = (np.tril(np.ones((context_size, context_size)))==0)
 		self.backward_mask = np.tril(np.ones((context_size, context_size)))
-
+		
 	def __call__(self, x, phase='train'):
 		self.Q, self.K, self.V = np.split(x, 3, axis=1)
 		self.Q = np.split(self.Q, self.H, axis=1)
@@ -153,9 +153,9 @@ class MH_attention_mechanism:
 			context_size = x.shape[0]
 
 		# Replace it by pre-init fields for faster implementation?
-		C = [0 for h in range(self.H)]
-		self.S = [0 for h in range(self.H)]
-		Z = [0 for h in range(self.H)]
+		C = 	 [None for h in range(self.H)]
+		self.S = [None for h in range(self.H)]
+		Z = 	 [None for h in range(self.H)]
 
 		# https://docs.python.org/3/library/multiprocessing.html
 		for h in range(self.H):
@@ -178,9 +178,9 @@ class MH_attention_mechanism:
 
 	def backward(self, dl):
 		dZ = np.split(dl, self.H, axis=1)
-		dQ = [0 for h in range(self.H)]
-		dK = [0 for h in range(self.H)]
-		dV = [0 for h in range(self.H)]
+		dQ = [None for h in range(self.H)]
+		dK = [None for h in range(self.H)]
+		dV = [None for h in range(self.H)]
 
 		for h in range(self.H):
 			dV[h] = self.S[h].T @ dZ[h]
