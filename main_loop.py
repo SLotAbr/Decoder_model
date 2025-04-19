@@ -29,8 +29,8 @@ if len(os.listdir(path=save_folder)) != 0:
 	model.restore_parameters(save_folder)
 else:
 	s, step_num, loss = 0, 0, 0
-	context_size, d_model, H, N = 128, 128, 2, 6 # 32, 64, 2, 3
-	target_lr = 1e-5
+	context_size, d_model, H, N = 128, 64, 2, 6 # 32, 64, 2, 3
+	target_lr = 1e-6
 	optim_param = [target_lr, 0.9, 0.98] # lr, b1, b2
 
 	source = open('input.txt', 'r').read()
@@ -51,8 +51,9 @@ else:
 
 	model = Decoder_model(context_size, vocabulary_size, d_model, H, N, optim_param)
 
-lr_decay_threshold = 10000
-lr = target_lr / 100
+lr_decay_threshold = 120000
+# lr = target_lr / 100
+lr = target_lr
 lr_step = (target_lr - lr) / lr_decay_threshold
 print('preparation\'s complete!')
 
@@ -81,11 +82,11 @@ while True:
 		print('--------\n %s \n--------' % (text_example, ))
 		print('iter %d, loss: %f, lr: %g' % (step_num, loss, lr))
 
-	if step_num <= lr_decay_threshold:
-		lr += lr_step
-	else:
-		lr -= lr_step
-	model.change_lr(lr)
+	# if step_num <= lr_decay_threshold:
+	# 	lr += lr_step
+	# else:
+	# 	lr -= lr_step
+	# model.change_lr(lr)
 
 	step_num += 1
 	s += context_size

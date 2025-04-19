@@ -1,17 +1,13 @@
 import numpy as np
 
 
-def positional_encoding(context_size, embedding_size):
-	position_value = np.concatenate([[
-						pos / (1e4**(np.arange(embedding_size)/embedding_size)) 
-						for pos in range(context_size)]]
-						, axis=1)
-
-	for i in range(embedding_size):
-		if i%2 == 0:
-			position_value[:,i] = np.sin(position_value[:,i]) * 1e-3
-		else:
-			position_value[:,i] = np.cos(position_value[:,i]) * 1e-3
+def positional_encoding(context_size, embedding_size, n=1e4):
+	position_value = np.zeros((context_size, embedding_size))
+	for pos in range(context_size):
+		for i in range(int(embedding_size/2)):
+			embedding_item = pos / np.power(n, 2*i/embedding_size)
+			position_value[pos, 2*i] 	 = np.sin(embedding_item) 
+			position_value[pos, 2*i + 1] = np.cos(embedding_item) 
 
 	return position_value
 
