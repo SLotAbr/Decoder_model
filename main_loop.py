@@ -23,7 +23,7 @@ if len(os.listdir(path=save_folder)) != 0:
 	with open(save_folder+'model_decription.pkl', 'rb') as f:
 		context_size, d_model, H, N, optim_param = pickle.load(f)
 	with open(save_folder+'iteration_param.pkl', 'rb') as f:
-		data_lenght, step_num, loss, lr, target_lr, lr_step = pickle.load(f)
+		data_lenght, step_num, loss, lr, target_lr = pickle.load(f)
 
 	model = Decoder_model(context_size, vocabulary_size, d_model, H, N, optim_param)
 	model.restore_parameters(save_folder)
@@ -51,12 +51,6 @@ else:
 
 	model = Decoder_model(context_size, vocabulary_size, d_model, H, N, optim_param)
 
-lr_decay_threshold = 150000
-lr = target_lr / 100
-# lr = target_lr
-lr_step = (target_lr - lr) / lr_decay_threshold
-print('preparation\'s complete!')
-
 train_index, train_target = [], []
 for s in range(0, source_lenght-1, context_size):
 	train_index.append(
@@ -66,6 +60,13 @@ for s in range(0, source_lenght-1, context_size):
 		[letter_transform[letter] for letter in source[s+1:s+context_size+1]]
 	)
 data_lenght = len(train_index)
+
+# lr_decay_threshold = 150000
+# lr = target_lr / 100
+# lr = target_lr
+lr = (d_model ** (-0.5)) * (data_lenght ** (-0.5))
+# lr_step = (target_lr - lr) / lr_decay_threshold
+print('preparation\'s complete!')
 
 while True:
 	if step_num > data_lenght:
@@ -82,7 +83,7 @@ while True:
 	if step_num%1000 == 0:
 		model.save_parameters(save_folder)
 		with open(save_folder+'iteration_param.pkl', 'wb') as f:
-			pickle.dump([data_lenght, step_num, loss, lr, target_lr, lr_step], f)
+			pickle.dump([data_lenght, step_num, loss, lr, target_lr], f)
 
 		index_list = [np.random.randint(0, vocabulary_size)]
 		target_list = []
@@ -95,12 +96,12 @@ while True:
 		print('--------\n %s \n--------' % (text_example, ))
 		print('iter %d, loss: %f, lr: %g' % (step_num, loss, lr))
 
-	if step_num <= lr_decay_threshold:
-		lr += lr_step
-	elif lr <= target_lr/100:
-		pass
-	else:
-		lr -= lr_step
-	model.change_lr(lr)
+	# if step_num <= lr_decay_threshold:
+	# 	lr += lr_step
+	# elif lr <= target_lr/100:
+	# 	pass
+	# else:
+	# 	lr -= lr_step
+	# model.change_lr(lr)
 
 	step_num += 1
