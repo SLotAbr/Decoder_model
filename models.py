@@ -24,14 +24,14 @@ class Decoder_model:
 		self.W_FC2 = [None for n in range(N)]
 		self.FC_LayerNorm = [None for n in range(N)]
 		for n in range(N):
-			self.W_attention[n] = nn.linear(d_model, d_model*3, optim_param)
+			self.W_attention[n] = nn.Linear(d_model, d_model*3, optim_param)
 			self.MH_attention[n] = nn.MH_attention_mechanism(context_size, d_model, H)
-			self.W_heads_projection[n] = nn.linear(d_model, d_model, optim_param)
+			self.W_heads_projection[n] = nn.Linear(d_model, d_model, optim_param)
 			self.Attention_LayerNorm[n] = nn.LayerNormalization(context_size)
 
-			self.W_FC1[n] = nn.linear(d_model, d_model*4, optim_param)
+			self.W_FC1[n] = nn.Linear(d_model, d_model*4, optim_param)
 			self.activation[n] = nn.ReLU()
-			self.W_FC2[n] = nn.linear(d_model*4, d_model, optim_param)
+			self.W_FC2[n] = nn.Linear(d_model*4, d_model, optim_param)
 			self.FC_LayerNorm[n] = nn.LayerNormalization(context_size)
 
 		self.final_LayerNorm = nn.LayerNormalization(context_size)

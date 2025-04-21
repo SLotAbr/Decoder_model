@@ -12,7 +12,11 @@ from tools.optimizers import AdaM as AdaM
 
 class token_embedding:
 	def __init__(self, vocabulary_size, d_model, context_size, optim_param):
-		self.TE_table = np.random.randn(vocabulary_size, d_model) * 1e-3
+		# self.TE_table = np.random.randn(vocabulary_size, d_model) * 1e-3
+		scale = 2 / (vocabulary_size + d_model)
+		self.TE_table = np.random.normal( # Gaussian distribution
+			0, scale, size = (vocabulary_size, d_model)
+		)
 		self.vocabulary_size = vocabulary_size
 		self.d_model = d_model
 		self.context_size = context_size
@@ -60,10 +64,13 @@ class token_embedding:
 			self.TE_table, self.optim = pickle.load(f)
 
 
-class linear:
+class Linear:
 	def __init__(self, hidden_units, number_of_neurons, optim_param):
-		# mean = 0, var = 1
-		self.W = np.random.randn(hidden_units, number_of_neurons) * 1e-3
+		# self.W = np.random.randn(hidden_units, number_of_neurons) * 1e-3
+		scale = 2 / (hidden_units + number_of_neurons)
+		self.W = np.random.normal( # Gaussian distribution
+			0, scale, size = (hidden_units, number_of_neurons)
+		)
 		self.b = np.zeros(number_of_neurons)
 		self.input_field = 0 # Memory for backpropagation
 		self.w_optim = AdaM(optim_param)
