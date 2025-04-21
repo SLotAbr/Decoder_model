@@ -48,7 +48,10 @@ else:
 		)
 	data_lenght = len(train_index)
 
-	lr = (d_model ** (-0.5)) * (data_lenght ** (-0.5)) / 100
+	lr_max = (d_model ** (-0.5)) * (data_lenght ** (-0.5))
+	# T_warmup = 100000
+	# lr = lr_max / T_warmup
+	lr = lr_max
 	optim_param = [lr, 0.9, 0.98] # lr, b1, b2
 
 	with open(save_folder+'text_decription.pkl', 'wb') as f:
@@ -67,6 +70,10 @@ print('preparation\'s complete!')
 while True:
 	if step_num == data_lenght:
 		step_num = 0
+
+	# if (step_num != 0) and (step_num <= T_warmup):
+	# 	lr = lr_max * step_num / T_warmup
+	# 	model.change_lr(lr)
 	# if step_num == 15000:
 	# 	lr *= 10
 	# 	model.change_lr(lr)
@@ -96,7 +103,7 @@ while True:
 		
 		text_example = ''.join(indexes_transform[i] for i in index_list)
 		print('--------\n %s \n--------' % (text_example, ))
-		print('iter %d, loss: %f, lr: %g' % (step_num, loss, lr))
+		print('iter %d, loss: %f, lr: %g, total steps: %d' % (step_num, loss, lr, data_lenght))
 
 	# if step_num <= lr_decay_threshold:
 	# 	lr += lr_step

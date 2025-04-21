@@ -177,6 +177,7 @@ class MH_attention_mechanism:
 				C[h][mask] = -1e12
 
 			self.S[h] = softmax(C[h])
+			# dropout?
 			# print('softmax\'s state:\n', self.S[h])
 			Z[h] = self.S[h]@self.V[h]
 			# print('Z\'s state:\n', Z[h])
@@ -190,6 +191,7 @@ class MH_attention_mechanism:
 		dV = [None for h in range(self.H)]
 
 		for h in range(self.H):
+			# dropout backprop?
 			dV[h] = self.S[h].T @ dZ[h]
 
 			dZ[h] = dZ[h]@self.V[h].T

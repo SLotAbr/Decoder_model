@@ -11,7 +11,9 @@ from tools.optimizers import AdaM
 
 class Decoder_model:
 	def __init__(self, context_size, vocabulary_size, d_model, H, N, optim_param):
-		self.TE = nn.token_embedding(vocabulary_size, d_model, context_size, optim_param)
+		self.TE = nn.token_embedding(
+			vocabulary_size, d_model, context_size, optim_param
+		)
 		self.PE = positional_encoding(context_size, d_model)
 
 		self.W_attention = [None for n in range(N)]
@@ -46,7 +48,9 @@ class Decoder_model:
 		self.TE.save_weights(folder+'TE_param.pkl')
 
 		for n in range(self.N):
-			self.W_attention[n].save_weights(folder+'W_attention_param{}.pkl'.format(str(n)))
+			self.W_attention[n].save_weights(
+				folder+'W_attention_param{}.pkl'.format(str(n))
+			)
 			self.W_heads_projection[n].save_weights\
 						(folder+'W_heads_projection_param{}.pkl'.format(str(n)))
 			self.W_FC1[n].save_weights(folder+'W_FC1_param{}.pkl'.format(str(n)))
@@ -56,7 +60,9 @@ class Decoder_model:
 		self.TE.restore_weights(folder+'TE_param.pkl')
 
 		for n in range(self.N):
-			self.W_attention[n].restore_weights(folder+'W_attention_param{}.pkl'.format(str(n)))
+			self.W_attention[n].restore_weights(
+				folder+'W_attention_param{}.pkl'.format(str(n))
+			)
 			self.W_heads_projection[n].restore_weights\
 						(folder+'W_heads_projection_param{}.pkl'.format(str(n)))
 			self.W_FC1[n].restore_weights(folder+'W_FC1_param{}.pkl'.format(str(n)))
@@ -89,22 +95,26 @@ class Decoder_model:
 		X = self.TE(index_list)
 		if phase=='train':
 			X += self.PE
+			# dropout?
 			context_size = self.context_size
 		else:
 			X += self.PE[:len(index_list)]
+			# dropout?
 			context_size = X.shape[0]
 
 		for n in range(self.N):
 			X_sublayer = self.Attention_LayerNorm[n](X, phase)
 			X_sublayer = self.W_attention[n](X_sublayer)
-			X_sublayer = self.MH_attention[n](X_sublayer, phase)
+			X_sublayer = self.MH_attention[n](X_sublayer, phase) # <- dropout?
 			X_sublayer = self.W_heads_projection[n](X_sublayer)
+			# dropout?
 			X += X_sublayer
 
 			X_sublayer = self.FC_LayerNorm[n](X, phase)
 			X_sublayer = self.W_FC1[n](X_sublayer)
 			X_sublayer = self.activation[n](X_sublayer)
 			X_sublayer = self.W_FC2[n](X_sublayer)
+			# dropout?
 			X += X_sublayer
 
 		X = self.final_LayerNorm(X)
@@ -114,7 +124,9 @@ class Decoder_model:
 		if phase =='train':
 			loss_value=0
 			for i in range(len(target_list)):
-				loss_value -= np.log(self.Output_token_probabilities[i][target_list[i]])
+				loss_value -= np.log(
+					self.Output_token_probabilities[i][target_list[i]]
+				)
 			return loss_value
 		else: # phase == 'eval'
 			## top-1 token probability
