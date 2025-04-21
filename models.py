@@ -34,6 +34,7 @@ class Decoder_model:
 			self.W_FC2[n] = nn.linear(d_model*4, d_model, optim_param)
 			self.FC_LayerNorm[n] = nn.LayerNormalization(context_size)
 
+		self.final_LayerNorm = nn.LayerNormalization(context_size)
 		self.Output_token_probabilities = None
 		self.context_size = context_size
 		self.N = N
@@ -94,16 +95,19 @@ class Decoder_model:
 			context_size = X.shape[0]
 
 		for n in range(self.N):
-			X_sublayer = self.W_attention[n](X)
+			X_sublayer = self.Attention_LayerNorm[n](X, phase)
+			X_sublayer = self.W_attention[n](X_sublayer)
 			X_sublayer = self.MH_attention[n](X_sublayer, phase)
 			X_sublayer = self.W_heads_projection[n](X_sublayer)
-			X = self.Attention_LayerNorm[n](X + X_sublayer, phase)
+			X += X_sublayer
 
-			X_sublayer = self.W_FC1[n](X)
+			X_sublayer = self.FC_LayerNorm[n](X, phase)
+			X_sublayer = self.W_FC1[n](X_sublayer)
 			X_sublayer = self.activation[n](X_sublayer)
 			X_sublayer = self.W_FC2[n](X_sublayer)
-			X = self.FC_LayerNorm[n](X + X_sublayer, phase)
+			X += X_sublayer
 
+		X = self.final_LayerNorm(X)
 		X = self.TE.linear(X)
 		self.Output_token_probabilities = softmax(X)
 
@@ -118,7 +122,7 @@ class Decoder_model:
 			# return np.random.choice(range(self.vocabulary_size), \
 			# 	p=self.Output_token_probabilities[-1].ravel())
 			## top-k token probabilities
-			k = 5
+			k = 10
 			ixs = np.argpartition(self.Output_token_probabilities[-1], -k)[-k:]
 			probs = softmax(self.Output_token_probabilities[-1][ixs])
 			return np.random.choice(ixs, p=probs)
@@ -129,18 +133,19 @@ class Decoder_model:
 			dl[i][self.target_list[i]] -= 1
 
 		dl, TE_grad = self.TE.linear_backward(dl)
+		dl = self.final_LayerNorm.backward(dl)
 
 		for n in reversed(range(self.N)):
-			dl = self.FC_LayerNorm[n].backward(dl)
 			dl = self.W_FC2[n].backward(dl)
 			dl = self.activation[n].backward(dl)
 			dl = self.W_FC1[n].backward(dl)
+			dl = self.FC_LayerNorm[n].backward(dl)
 			dl += self.residual_backprop
 
-			dl = self.Attention_LayerNorm[n].backward(dl)
 			dl = self.W_heads_projection[n].backward(dl)
 			dl = self.MH_attention[n].backward(dl)
 			dl = self.W_attention[n].backward(dl)
+			dl = self.Attention_LayerNorm[n].backward(dl)
 			dl += self.residual_backprop
 
 		self.TE.update_weights(dl, TE_grad)
