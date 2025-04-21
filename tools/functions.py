@@ -12,8 +12,11 @@ def positional_encoding(context_size, embedding_size, n=1e4):
 	return position_value
 
 
-def softmax2D(X):
+def softmax(X):
 	# is working only with 2D matrices along the first dimenstion
 	X  = np.exp(X)
-	X /= X.sum(axis=1, keepdims=True)
+	if len(X.shape) == 1:
+		X /= X.sum()
+	else:
+		X /= X.sum(axis=1, keepdims=True)
 	return X

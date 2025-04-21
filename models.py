@@ -5,7 +5,7 @@ BSD License
 '''
 import numpy as np
 import tools.nn as nn
-from tools.functions import positional_encoding, softmax2D
+from tools.functions import positional_encoding, softmax
 from tools.optimizers import AdaM
 
 
@@ -80,7 +80,7 @@ class Decoder_model:
 		# We use target_list only during train phase - so, 
 		# 	we can give empty target_list during eval phase
 		assert len(index_list) <= self.context_size,\
-			"The current realization does not support sequences bigger than train context_size"
+			"This implementation does not support sequences bigger than train context_size"
 		# I remove it later, when the eficcient evaluation phase will complete
 		self.target_list = target_list
 
@@ -105,7 +105,7 @@ class Decoder_model:
 			X = self.FC_LayerNorm[n](X + X_sublayer, phase)
 
 		X = self.TE.linear(X)
-		self.Output_token_probabilities = softmax2D(X)
+		self.Output_token_probabilities = softmax(X)
 
 		if phase =='train':
 			loss_value=0
@@ -113,10 +113,15 @@ class Decoder_model:
 				loss_value -= np.log(self.Output_token_probabilities[i][target_list[i]])
 			return loss_value
 		else: # phase == 'eval'
-			# return the indexes with highest probability for tokens in vocabulary
-			return np.argmax(self.Output_token_probabilities[-1]) #, axis=1)
+			## top-1 token probability
+			# return np.argmax(self.Output_token_probabilities[-1]) #, axis=1)
 			# return np.random.choice(range(self.vocabulary_size), \
 			# 	p=self.Output_token_probabilities[-1].ravel())
+			## top-k token probabilities
+			k = 5
+			ixs = np.argpartition(self.Output_token_probabilities[-1], -k)[-k:]
+			probs = softmax(self.Output_token_probabilities[-1][ixs])
+			return np.random.choice(ixs, p=probs)
 
 	def backward(self):
 		dl = self.Output_token_probabilities

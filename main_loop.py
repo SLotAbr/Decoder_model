@@ -23,15 +23,13 @@ if len(os.listdir(path=save_folder)) != 0:
 	with open(save_folder+'model_decription.pkl', 'rb') as f:
 		context_size, d_model, H, N, optim_param = pickle.load(f)
 	with open(save_folder+'iteration_param.pkl', 'rb') as f:
-		data_lenght, step_num, loss, lr, target_lr = pickle.load(f)
+		data_lenght, step_num, loss, lr = pickle.load(f)
 
 	model = Decoder_model(context_size, vocabulary_size, d_model, H, N, optim_param)
 	model.restore_parameters(save_folder)
 else:
 	step_num, loss = 0, 0
-	context_size, d_model, H, N = 128, 64, 2, 6 # 32, 64, 2, 3
-	target_lr = 1e-6
-	optim_param = [target_lr, 0.9, 0.98] # lr, b1, b2
+	context_size, d_model, H, N = 128, 64, 2, 3 # 32, 64, 2, 3
 
 	source = open('input.txt', 'r').read()
 	alphabet = list(set(source))
@@ -39,6 +37,19 @@ else:
 	letter_transform = { letter:i for i, letter in enumerate(alphabet) }
 	indexes_transform = { i:letter for i, letter in enumerate(alphabet) }
 	print('vocabulary_size: ', vocabulary_size)
+
+	train_index, train_target = [], []
+	for s in range(0, source_lenght-context_size-1, context_size):
+		train_index.append(
+			[letter_transform[letter] for letter in source[s:s+context_size]]
+		)
+		train_target.append(
+			[letter_transform[letter] for letter in source[s+1:s+context_size+1]]
+		)
+	data_lenght = len(train_index)
+
+	lr = (d_model ** (-0.5)) * (data_lenght ** (-0.5)) / 100
+	optim_param = [lr, 0.9, 0.98] # lr, b1, b2
 
 	with open(save_folder+'text_decription.pkl', 'wb') as f:
 		pickle.dump([source, alphabet,
@@ -51,26 +62,17 @@ else:
 
 	model = Decoder_model(context_size, vocabulary_size, d_model, H, N, optim_param)
 
-train_index, train_target = [], []
-for s in range(0, source_lenght-1, context_size):
-	train_index.append(
-		[letter_transform[letter] for letter in source[s:s+context_size]]
-	)
-	train_target.append(
-		[letter_transform[letter] for letter in source[s+1:s+context_size+1]]
-	)
-data_lenght = len(train_index)
-
-# lr_decay_threshold = 150000
-# lr = target_lr / 100
-# lr = target_lr
-lr = (d_model ** (-0.5)) * (data_lenght ** (-0.5))
-# lr_step = (target_lr - lr) / lr_decay_threshold
 print('preparation\'s complete!')
 
 while True:
 	if step_num > data_lenght:
 		step_num = 0
+	# if step_num == 15000:
+	# 	lr *= 10
+	# 	model.change_lr(lr)
+	# if step_num == 45000:
+	# 	lr *= 10
+	# 	model.change_lr(lr)
 
 	loss_value = model.forward(
 		train_index[step_num], 
@@ -83,16 +85,16 @@ while True:
 	if step_num%1000 == 0:
 		model.save_parameters(save_folder)
 		with open(save_folder+'iteration_param.pkl', 'wb') as f:
-			pickle.dump([data_lenght, step_num, loss, lr, target_lr], f)
+			pickle.dump([data_lenght, step_num, loss, lr], f)
 
 		index_list = [np.random.randint(0, vocabulary_size)]
 		target_list = []
-		for l in range(128):
+		for l in range(context_size):
 			index_list.append(
 				model.forward(index_list,target_list, phase='eval')
 			)
 		
-		text_example = ' '.join(indexes_transform[i] for i in index_list)
+		text_example = ''.join(indexes_transform[i] for i in index_list)
 		print('--------\n %s \n--------' % (text_example, ))
 		print('iter %d, loss: %f, lr: %g' % (step_num, loss, lr))
 

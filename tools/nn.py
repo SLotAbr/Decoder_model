@@ -6,7 +6,7 @@ BSD License
 # from multiprocessing import Process
 import numpy as np
 import pickle
-from tools.functions import softmax2D
+from tools.functions import softmax
 from tools.optimizers import AdaM as AdaM
 
 
@@ -169,7 +169,7 @@ class MH_attention_mechanism:
 				mask = (np.tril(np.ones((context_size, context_size)))==0)
 				C[h][mask] = -1e12
 
-			self.S[h] = softmax2D(C[h])
+			self.S[h] = softmax(C[h])
 			# print('softmax\'s state:\n', self.S[h])
 			Z[h] = self.S[h]@self.V[h]
 			# print('Z\'s state:\n', Z[h])
