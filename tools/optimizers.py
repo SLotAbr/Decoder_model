@@ -9,9 +9,14 @@ class AdaM:
 		self.m = 0
 		self.v = 0
 
-	def weights_update(self, w, dw):
+	def weights_update(self, w, dw, clip_threshold=1.0):
 		self.m = (1-self.b1)*dw + self.b1*self.m
 		self.v = (1-self.b2)*(dw**2) + self.b2*self.v
 		# print('m:\n',self.m)
 		# print('v:\n',self.v)
-		return w - self.lr * self.m/np.sqrt(self.v + 1e-9)
+		grad = self.m/np.sqrt(self.v + 1e-9)
+		grad_norm = np.sqrt(np.sum(np.pow(grad, 2)))
+		# print(grad_norm)
+		if grad_norm > clip_threshold:
+			grad /= grad_norm
+		return w - self.lr * grad

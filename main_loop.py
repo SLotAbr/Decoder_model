@@ -29,7 +29,7 @@ if len(os.listdir(path=save_folder)) != 0:
 	model.restore_parameters(save_folder)
 else:
 	step_num, loss = 0, 0
-	context_size, d_model, H, N = 64, 64, 2, 4 # 32, 64, 2, 3
+	context_size, d_model, H, N = 32, 64, 2, 4 # 32, 64, 2, 3
 
 	source = open('input.txt', 'r').read()
 	alphabet = list(set(source))
