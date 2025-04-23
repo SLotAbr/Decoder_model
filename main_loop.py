@@ -13,23 +13,25 @@ if len(checkpoint_files) != 0:
     for file in checkpoint_files:
         os.remove(save_folder + file)
 
-# if some files will be found in "save_folder" folder,
-# they will be used as the last checkpoint
+# Load train data from checkpoint
 if len(os.listdir(path=save_folder)) != 0:
 	with open(save_folder+'text_decription.pkl', 'rb') as f:
 		source, alphabet, \
 		source_lenght, vocabulary_size, \
 		letter_transform, indexes_transform = pickle.load(f)
 	with open(save_folder+'model_decription.pkl', 'rb') as f:
-		context_size, d_model, H, N, optim_param = pickle.load(f)
+		context_size, d_model, H, N, optim_param, weight_decay = pickle.load(f)
 	with open(save_folder+'iteration_param.pkl', 'rb') as f:
 		data_lenght, step_num, loss, lr = pickle.load(f)
 
-	model = Decoder_model(context_size, vocabulary_size, d_model, H, N, optim_param)
+	model = Decoder_model(
+		context_size, vocabulary_size, d_model, H, N, optim_param, weight_decay
+	)
 	model.restore_parameters(save_folder)
 else:
 	step_num, loss = 0, 0
-	context_size, d_model, H, N = 32, 64, 2, 4 # 32, 64, 2, 3
+	context_size, d_model, H, N = 64, 64, 2, 4 # 32, 64, 2, 3
+	weight_decay = 0.1
 
 	source = open('input.txt', 'r').read()
 	alphabet = list(set(source))
@@ -40,19 +42,21 @@ else:
 
 	train_index, train_target = [], []
 	for s in range(0, source_lenght-context_size-1, context_size):
-		train_index.append(
-			[letter_transform[letter] for letter in source[s:s+context_size]]
-		)
-		train_target.append(
-			[letter_transform[letter] for letter in source[s+1:s+context_size+1]]
-		)
+		train_index.append([
+			letter_transform[letter] 
+				for letter in source[s:s+context_size]
+		])
+		train_target.append([
+			letter_transform[letter] 
+				for letter in source[s+1:s+context_size+1]
+		])
 	data_lenght = len(train_index)
 
 	lr_max = (d_model ** (-0.5)) * (data_lenght ** (-0.5))
 	# T_warmup = 100000
 	# lr = lr_max / T_warmup
 	lr = lr_max
-	optim_param = [lr, 0.9, 0.98] # lr, b1, b2
+	optim_param = [lr, 0.9, 0.95] # lr, b1, b2
 
 	with open(save_folder+'text_decription.pkl', 'wb') as f:
 		pickle.dump([source, alphabet,
@@ -61,25 +65,19 @@ else:
 					 letter_transform, 
 					 indexes_transform], f)
 	with open(save_folder+'model_decription.pkl', 'wb') as f:
-		pickle.dump([context_size, d_model, H, N, optim_param], f)
+		pickle.dump(
+			[context_size, d_model, H, N, optim_param, weight_decay], f
+		)
 
-	model = Decoder_model(context_size, vocabulary_size, d_model, H, N, optim_param)
+	model = Decoder_model(
+		context_size, vocabulary_size, d_model, H, N, optim_param, weight_decay
+	)
 
 print('preparation\'s complete!')
 
 while True:
 	if step_num == data_lenght:
 		step_num = 0
-
-	# if (step_num != 0) and (step_num <= T_warmup):
-	# 	lr = lr_max * step_num / T_warmup
-	# 	model.change_lr(lr)
-	# if step_num == 15000:
-	# 	lr *= 10
-	# 	model.change_lr(lr)
-	# if step_num == 45000:
-	# 	lr *= 10
-	# 	model.change_lr(lr)
 
 	loss_value = model.forward(
 		train_index[step_num], 
@@ -103,7 +101,14 @@ while True:
 		
 		text_example = ''.join(indexes_transform[i] for i in index_list)
 		print('--------\n %s \n--------' % (text_example, ))
-		print('iter %d, loss: %f, lr: %g, total steps: %d' % (step_num, loss, lr, data_lenght))
+		print(
+			'iter %d, loss: %f, lr: %g, total steps: %d' \
+						% (step_num, loss, lr, data_lenght)
+		)
+		# print('max and min weight values for a random linear: ', 
+		# 	round(np.max(model.W_FC1[2].W), 4),
+		# 	round(np.min(model.W_FC1[2].W), 4)
+		# )
 
 	# if step_num <= lr_decay_threshold:
 	# 	lr += lr_step

@@ -10,7 +10,15 @@ from tools.optimizers import AdaM
 
 
 class Decoder_model:
-	def __init__(self, context_size, vocabulary_size, d_model, H, N, optim_param):
+	def __init__(self, 
+		context_size, 
+		vocabulary_size, 
+		d_model, 
+		H, 
+		N, 
+		optim_param, 
+		weight_decay
+	):
 		self.TE = nn.token_embedding(
 			vocabulary_size, d_model, context_size, optim_param
 		)
@@ -25,16 +33,27 @@ class Decoder_model:
 		self.activation = [None for n in range(N)]
 		self.W_FC2 = [None for n in range(N)]
 		self.FC_LayerNorm = [None for n in range(N)]
-		for n in range(N):
-			self.W_attention[n] = nn.Linear(d_model, d_model*3, optim_param)
-			self.MH_attention[n] = nn.MH_attention_mechanism(context_size, d_model, H)
-			self.W_heads_projection[n] = nn.Linear(d_model, d_model, optim_param)
-			self.Attention_LayerNorm[n] = nn.LayerNormalization(context_size)
 
-			self.W_FC1[n] = nn.Linear(d_model, d_model*4, optim_param)
-			self.activation[n] = nn.ReLU()
-			self.W_FC2[n] = nn.Linear(d_model*4, d_model, optim_param)
+		for n in range(N):
+			self.Attention_LayerNorm[n] = nn.LayerNormalization(context_size)
+			self.W_attention[n] = nn.Linear(
+				d_model, d_model*3, optim_param, weight_decay
+			)
+			self.MH_attention[n] = nn.MH_attention_mechanism(
+				context_size, d_model, H
+			)
+			self.W_heads_projection[n] = nn.Linear(
+				d_model, d_model, optim_param, weight_decay
+			)
+
 			self.FC_LayerNorm[n] = nn.LayerNormalization(context_size)
+			self.W_FC1[n] = nn.Linear(
+				d_model, d_model*4, optim_param, weight_decay
+			)
+			self.activation[n] = nn.ReLU()
+			self.W_FC2[n] = nn.Linear(
+				d_model*4, d_model, optim_param, weight_decay
+			)
 
 		self.final_LayerNorm = nn.LayerNormalization(context_size)
 		self.Output_token_probabilities = None
@@ -44,7 +63,7 @@ class Decoder_model:
 		self.residual_backprop = np.ones((context_size, d_model))
 
 	def save_parameters(self, folder):
-		# The folder must ends on '/'!
+		# The folder must end on '/'!
 		self.TE.save_weights(folder+'TE_param.pkl')
 
 		for n in range(self.N):
@@ -84,14 +103,13 @@ class Decoder_model:
 
 	def forward(self, index_list, target_list, phase='train'):
 		# index_list and target_list must be 1D array
-		# We use target_list only during train phase - so, 
-		# 	we can give empty target_list during eval phase
+		# We use target_list only during training, so it's 
+		# excessive to give the array during evaluation
 		assert len(index_list) <= self.context_size,\
 			"This implementation does not support sequences bigger than train context_size"
-		# I remove it later, when the eficcient evaluation phase will complete
+		# Is used for backward pass calculation
 		self.target_list = target_list
 
-		# Output matrix have the same shape during training
 		X = self.TE(index_list)
 		if phase=='train':
 			X += self.PE
@@ -127,6 +145,7 @@ class Decoder_model:
 				loss_value -= np.log(
 					self.Output_token_probabilities[i][target_list[i]]
 				)
+				# loss_value += lambda * sum(weight ** 2)
 			return loss_value
 		else: # phase == 'eval'
 			## top-1 token probability

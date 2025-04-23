@@ -11,8 +11,12 @@ from tools.optimizers import AdaM as AdaM
 
 
 class token_embedding:
-	def __init__(self, vocabulary_size, d_model, context_size, optim_param):
-		# self.TE_table = np.random.randn(vocabulary_size, d_model) * 1e-3
+	def __init__(self, 
+		vocabulary_size, 
+		d_model, 
+		context_size, 
+		optim_param
+	):
 		scale = 2 / (vocabulary_size + d_model)
 		self.TE_table = np.random.normal( # Gaussian distribution
 			0, scale, size = (vocabulary_size, d_model)
@@ -24,16 +28,15 @@ class token_embedding:
 		self.optim = AdaM(optim_param)
 
 	def __call__(self, index_list):
-		# form X matrix from tokens indexes
-		# We should use 2D array for further concatenation
+		# 1D token_index array -> 2D token_embedding array
 		self.input_indexes = index_list
-		context = [[self.TE_table[j] for j in index_list]]
-
-		return np.concatenate(context, axis=1)
+		return self.TE_table[index_list]
 
 	def update_weights(self, dX, dTE_linear):
-		# dTE_linear - the second part of TE derivative
-		# TE derivative have 2 parts - so, we'll get it by external source
+		# The deravative have 2 parts: from the model tail and its head.
+		# The second one (dTE_linear) we calculate manually. The first
+		# one (dX) we get at the end of backpropagation
+
 		dTE = np.zeros((self.vocabulary_size, self.d_model))
 		for i in range(self.context_size):
 			dTE[self.input_indexes[i]] += dX[i]
@@ -43,16 +46,16 @@ class token_embedding:
 
 	def linear(self, x):
 		'''
-		using token_embeddings as linear layer with bias=0
-		we'll use it for finding out output token probabilities
-		:x.shape = [context_size; d_model]
-		:output.shape = [context_size; vocabulary_size]
+		Projects hidden dimension to vocabulary_size. When paired with 
+		softmax, it allows to get output token probabilities
+
+		[context_size; d_model] -> [context_size; vocabulary_size]
 		'''
 		self.input_field = x
 		return x@self.TE_table.T
 
 	def linear_backward(self, dl):
-		# returns derivatives for input signal and TE_table
+		# Returns derivatives for input signal and TE_table
 		return dl@self.TE_table, (self.input_field.T@dl).T
 
 	def save_weights(self, path):
@@ -65,15 +68,19 @@ class token_embedding:
 
 
 class Linear:
-	def __init__(self, hidden_units, number_of_neurons, optim_param):
-		# self.W = np.random.randn(hidden_units, number_of_neurons) * 1e-3
+	def __init__(self, 
+		hidden_units, 
+		number_of_neurons, 
+		optim_param, 
+		weight_decay
+	):
 		scale = 2 / (hidden_units + number_of_neurons)
 		self.W = np.random.normal( # Gaussian distribution
 			0, scale, size = (hidden_units, number_of_neurons)
 		)
 		self.b = np.zeros(number_of_neurons)
 		self.input_field = 0 # Memory for backpropagation
-		self.w_optim = AdaM(optim_param)
+		self.w_optim = AdaM(optim_param, weight_decay)
 		self.b_optim = AdaM(optim_param)
 
 	def __call__(self, x):
@@ -84,11 +91,10 @@ class Linear:
 		dw = self.input_field.T @ dl
 		db = dl.sum(axis=0)
 
-		# Updating weights
 		self.W = self.w_optim.weights_update(self.W, dw)
 		self.b = self.b_optim.weights_update(self.b, db)
 
-		# returns dl for previous layers
+		# Backward signal for previous layers
 		return dl @ self.W.T
 
 	def save_weights(self, path):
@@ -118,14 +124,9 @@ class LayerNormalization:
 		self.context_size = context_size
 
 	def __call__(self, x, phase='train'):
-		'''
-		I'll delete if-else construction and replace it more
-		eficient version for evaluation phase later.
-		There is the same construction in MH_attention_mechanism (__call__ field)
-		'''
 		if phase == 'train':
 			context_size = self.context_size
-		else:
+		else: # phase == 'eval'
 			context_size = x.shape[0]
 
 		x_mean = x.mean(axis=1, keepdims=True)
@@ -142,8 +143,8 @@ class MH_attention_mechanism:
 		self.d_k = 1 / np.sqrt(d_model/H)
 		self.context_size = context_size
 		self.H = H
-		# A matrix with 'True' values above the main diagonal
-		# We'll use it later to replace elements in dot product of Q and K
+		# A matrix with 'True' values above the main diagonal.
+		# Is used to replace elements in the dot product of Q and K
 		self.mask = (np.tril(np.ones((context_size, context_size)))==0)
 		self.backward_mask = np.tril(np.ones((context_size, context_size)))
 		
@@ -153,13 +154,11 @@ class MH_attention_mechanism:
 		self.K = np.split(self.K, self.H, axis=1)
 		self.V = np.split(self.V, self.H, axis=1)
 
-		# When we generate text ('eval phase'), context_size always different
 		if phase == 'train':
 			context_size = self.context_size
-		else:
+		else: # phase == 'eval'
 			context_size = x.shape[0]
 
-		# Replace it by pre-init fields for faster implementation?
 		C = 	 [None for h in range(self.H)]
 		self.S = [None for h in range(self.H)]
 		Z = 	 [None for h in range(self.H)]
@@ -171,8 +170,9 @@ class MH_attention_mechanism:
 
 			if phase == 'train':
 				C[h][self.mask]=-1e12
-			else:
-				# We've got different context_size during evaluation
+			else: # phase == 'eval'
+				# context_size is always different during evaluation,
+				# So we have to use a corresponding mask
 				mask = (np.tril(np.ones((context_size, context_size)))==0)
 				C[h][mask] = -1e12
 
@@ -195,8 +195,6 @@ class MH_attention_mechanism:
 			dV[h] = self.S[h].T @ dZ[h]
 
 			dZ[h] = dZ[h]@self.V[h].T
-			# We should multiplicate it later in chain-rule, 
-			# but there isn't a mistake to do this now
 			dZ[h] = dZ[h] * self.backward_mask
 			dZ[h] = dZ[h]@ (self.S[h]*(1-self.S[h]))
 
