@@ -22,14 +22,14 @@ if len(os.listdir(path=save_folder)) != 0:
 	with open(save_folder+'model_decription.pkl', 'rb') as f:
 		context_size, d_model, H, N, optim_param, weight_decay = pickle.load(f)
 	with open(save_folder+'iteration_param.pkl', 'rb') as f:
-		data_lenght, step_num, loss, lr = pickle.load(f)
+		data_lenght, step_num, train_i, loss, lr = pickle.load(f)
 
 	model = Decoder_model(
 		context_size, vocabulary_size, d_model, H, N, optim_param, weight_decay
 	)
 	model.restore_parameters(save_folder)
 else:
-	step_num, loss = 0, 0
+	step_num, train_i, loss = 0, 0, 0
 	context_size, d_model, H, N = 64, 64, 2, 4 # 32, 64, 2, 3
 	weight_decay = 0.1
 
@@ -90,7 +90,9 @@ while True:
 	if step_num%1000 == 0:
 		model.save_parameters(save_folder)
 		with open(save_folder+'iteration_param.pkl', 'wb') as f:
-			pickle.dump([data_lenght, step_num, loss, lr], f)
+			pickle.dump(
+				[data_lenght, step_num, train_i, loss, lr], f
+			)
 
 		index_list = [np.random.randint(0, vocabulary_size)]
 		target_list = []
@@ -103,7 +105,7 @@ while True:
 		print('--------\n %s \n--------' % (text_example, ))
 		print(
 			'iter %d, loss: %f, lr: %g, total steps: %d' \
-						% (step_num, loss, lr, data_lenght)
+						% (train_i, loss, lr, data_lenght)
 		)
 		# print('max and min weight values for a random linear: ', 
 		# 	round(np.max(model.W_FC1[2].W), 4),
@@ -119,3 +121,4 @@ while True:
 	# model.change_lr(lr)
 
 	step_num += 1
+	train_i  += 1
