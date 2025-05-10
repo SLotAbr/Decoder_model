@@ -12,6 +12,7 @@ from tools.optimizers import AdaM as AdaM
 
 class token_embedding:
 	def __init__(self, 
+		batch_size, 
 		vocabulary_size, 
 		d_model, 
 		context_size, 
@@ -21,41 +22,54 @@ class token_embedding:
 		self.TE_table = np.random.normal( # Gaussian distribution
 			0, scale, size = (vocabulary_size, d_model)
 		)
+		self.batch_size = batch_size
 		self.vocabulary_size = vocabulary_size
 		self.d_model = d_model
 		self.context_size = context_size
-		self.input_field = 0
-		self.optim = AdaM(optim_param)
+		# self.input_field = 0
+		self.optim = AdaM(optim_param, batch_size)
 
 	def __call__(self, index_list):
-		# 1D token_index array -> 2D token_embedding array
+		# [context_indexes] -> [Context; Vocabulary]
+		# [Batch; context_indexes] -> [Batch; Context; Vocabulary]
 		self.input_indexes = index_list
 		return self.TE_table[index_list]
 
 	def update_weights(self, dX, dTE_linear):
-		# The deravative have 2 parts: from the model tail and its head.
-		# The second one (dTE_linear) we calculate manually. The first
-		# one (dX) we get at the end of backpropagation
+		# The deravative have 2 parts: from the model tail 
+		# (accumulates signal for the chosen vocabulary items) 
+		# and its head (linear projection)
 
-		dTE = np.zeros((self.vocabulary_size, self.d_model))
-		for i in range(self.context_size):
-			dTE[self.input_indexes[i]] += dX[i]
+		dTE = np.zeros(
+			(self.batch_size, self.vocabulary_size, self.d_model)
+		)
+		for b in range(self.batch_size):
+			for c in range(self.context_size):
+				dTE[b][self.input_indexes[c]] += dX[b][c]
 
 		dTE += dTE_linear
-		self.TE_table = self.optim.weights_update(self.TE_table, dTE)
+		
+		# The optimizer receives the sum of batch derivatives and 
+		# normalizes them later
+		self.TE_table = self.optim.weights_update(
+			self.TE_table,
+			# [B; V; d_model] -> [V; d_model]
+			dTE.sum(axis=0)
+		)
 
 	def linear(self, x):
 		'''
 		Projects hidden dimension to vocabulary_size. When paired with 
 		softmax, it allows to get output token probabilities
 
-		[context_size; d_model] -> [context_size; vocabulary_size]
+		[Batch; Context; d_model] -> [Batch; Context; Vocabulary]
+		[Context; d_model] -> [Context; Vocabulary]
 		'''
 		self.input_field = x
 		return x@self.TE_table.T
 
 	def linear_backward(self, dl):
-		# Returns derivatives for input signal and TE_table
+		# Returns derivatives for input signal and TE_table (dl/dx and dl/dw)
 		return dl@self.TE_table, (self.input_field.T@dl).T
 
 	def save_weights(self, path):
@@ -72,6 +86,7 @@ class Linear:
 		hidden_units, 
 		number_of_neurons, 
 		optim_param, 
+		batch_size, 
 		weight_decay
 	):
 		scale = 2 / (hidden_units + number_of_neurons)
@@ -79,23 +94,25 @@ class Linear:
 			0, scale, size = (hidden_units, number_of_neurons)
 		)
 		self.b = np.zeros(number_of_neurons)
-		self.input_field = 0 # Memory for backpropagation
-		self.w_optim = AdaM(optim_param, weight_decay)
-		self.b_optim = AdaM(optim_param)
+		# self.input_field = 0 # Memory for backpropagation
+		self.w_optim = AdaM(optim_param, batch_size, weight_decay)
+		self.b_optim = AdaM(optim_param, batch_size)
 
 	def __call__(self, x):
 		self.input_field = x
 		return (x @ self.W + self.b) #np.dot(x, w) + b
 
 	def backward(self, dl):
-		dw = self.input_field.T @ dl
-		db = dl.sum(axis=0)
+		# input_field.T @ dl
+		dw = np.moveaxis(self.input_field, -1, -2) @ dl
+		db = dl.sum(axis=1)
 
-		self.W = self.w_optim.weights_update(self.W, dw)
-		self.b = self.b_optim.weights_update(self.b, db)
+		# [Batch; *W.shape] -> [*W.shape]
+		# [Batch; *b.shape] -> [*b.shape]
+		self.W = self.w_optim.weights_update(self.W, dw.sum(axis=0))
+		self.b = self.b_optim.weights_update(self.b, db.sum(axis=0))
 
-		# Backward signal for previous layers
-		return dl @ self.W.T
+		return dl @ self.W.T # dl/dx
 
 	def save_weights(self, path):
 		with open(path, 'wb') as f:
@@ -120,21 +137,23 @@ class ReLU:
 
 
 class LayerNormalization:
+	# The initialization is useless without additional variables such
+	# as betta and gamma
 	def __init__(self, context_size):
 		self.context_size = context_size
 
 	def __call__(self, x, phase='train'):
-		if phase == 'train':
-			context_size = self.context_size
-		else: # phase == 'eval'
-			context_size = x.shape[0]
+		# if phase == 'train':
+		# 	context_size = self.context_size
+		# else: # phase == 'eval'
+		# 	context_size = x.shape[0]
 
-		x_mean = x.mean(axis=1, keepdims=True)
-		self.x_var = x.var(axis=1, keepdims=True)
+		x_mean = x.mean(axis=-1, keepdims=True)
+		self.x_var = x.var(axis=-1, keepdims=True)
 		return (x-x_mean) / np.sqrt(self.x_var+1e-12)
 
 	def backward(self, dl):
-		l_mean = dl.mean(axis=1, keepdims=True)
+		l_mean = dl.mean(axis=-1, keepdims=True)
 		return (dl-l_mean) / np.sqrt(self.x_var+1e-12)
 
 

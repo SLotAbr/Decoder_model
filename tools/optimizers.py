@@ -2,10 +2,11 @@ import numpy as np
 
 
 class AdaM:
-	def __init__(self, optim_param, weight_decay=None):
+	def __init__(self, optim_param, batch_size, weight_decay=None):
 		self.lr = optim_param[0]
 		self.b1 = optim_param[1]
 		self.b2 = optim_param[2]
+		self.batch_size = batch_size
 		self.weight_decay = weight_decay
 		self.m = 0
 		self.v = 0
@@ -20,8 +21,8 @@ class AdaM:
 		# print(grad_norm)
 		if grad_norm > clip_threshold:
 			grad /= grad_norm
-		# If batch_size > 1: self.lr /= batch_size
+
 		if self.weight_decay:
-			return (1 - self.lr*self.weight_decay) * w - self.lr * grad
+			return (1 - self.lr*self.weight_decay) * w - (self.lr / self.batch_size * grad)
 		else:
-			return w - self.lr * grad
+			return w - self.lr / self.batch_size * grad
