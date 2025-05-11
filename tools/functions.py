@@ -1,7 +1,9 @@
 import numpy as np
 
 
-def positional_encoding(context_size, embedding_size, n=1e4):
+# Mini-batch update:
+# Batch dim is required ( [batch_size; context_size, embedding_size] )
+def positional_encoding(batch_size, context_size, embedding_size, n=1e4):
 	position_value = np.zeros((context_size, embedding_size))
 	for pos in range(context_size):
 		for i in range(int(embedding_size/2)):
@@ -18,8 +20,8 @@ def softmax(X):
 		X  = np.exp(X)
 		X /= X.sum()
 	else:
-		X -= np.max(X, axis=1, keepdims=True)
+		X -= np.max(X, axis=-1, keepdims=True)
 		X  = np.exp(X)
-		X /= X.sum(axis=1, keepdims=True)
+		X /= X.sum(axis=-1, keepdims=True)
 		
 	return X

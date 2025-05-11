@@ -158,70 +158,73 @@ class LayerNormalization:
 
 
 class MH_attention_mechanism:
-	def __init__(self, context_size, d_model, H):
+	"""
+	Causally masked multihead self-attention
+	"""
+	def __init__(self, batch_size, context_size, d_model, H):
 		self.d_k = 1 / np.sqrt(d_model/H)
-		self.context_size = context_size
+		# self.context_size = context_size
 		self.H = H
-		# A matrix with 'True' values above the main diagonal.
-		# Is used to replace elements in the dot product of Q and K
-		self.mask = (np.tril(np.ones((context_size, context_size)))==0)
-		self.backward_mask = np.tril(np.ones((context_size, context_size)))
-		
+		self.backward_mask = np.tril(
+			np.ones((batch_size, context_size, context_size))
+		)
+		self.mask = self.backward_mask == 0
+	
 	def __call__(self, x, phase='train'):
-		self.Q, self.K, self.V = np.split(x, 3, axis=1)
-		self.Q = np.split(self.Q, self.H, axis=1)
-		self.K = np.split(self.K, self.H, axis=1)
-		self.V = np.split(self.V, self.H, axis=1)
+		self.Q, self.K, self.V = np.split(x, 3, axis=-1)
+		self.Q = np.split(self.Q, self.H, axis=-1)
+		self.K = np.split(self.K, self.H, axis=-1)
+		self.V = np.split(self.V, self.H, axis=-1)
+
+		context_size = x.shape[-2] # <= train context size
 
 		if phase == 'train':
-			context_size = self.context_size
+			mask = self.mask
 		else: # phase == 'eval'
-			context_size = x.shape[0]
+			# there are no batches for evaluation
+			mask = self.mask[0][:context_size,:context_size]
 
-		C = 	 [None for h in range(self.H)]
+		# soft weights
 		self.S = [None for h in range(self.H)]
-		Z = 	 [None for h in range(self.H)]
+		scores = [None for h in range(self.H)]
 
 		# https://docs.python.org/3/library/multiprocessing.html
 		for h in range(self.H):
-			# Attention formula
-			C[h] = self.Q[h] @ self.K[h].T * self.d_k
+			# Q @ K.T / K.shape[-1]
+			self.S[h] = self.Q[h] @ np.moveaxis(self.K[h], -1, -2) * self.d_k
 
-			if phase == 'train':
-				C[h][self.mask]=-1e12
-			else: # phase == 'eval'
-				# context_size is always different during evaluation,
-				# So we have to use a corresponding mask
-				mask = (np.tril(np.ones((context_size, context_size)))==0)
-				C[h][mask] = -1e12
-
-			self.S[h] = softmax(C[h])
+			self.S[h][mask] = -1e12
+			self.S[h] = softmax(self.S[h])
 			# dropout?
-			# print('softmax\'s state:\n', self.S[h])
-			Z[h] = self.S[h]@self.V[h]
-			# print('Z\'s state:\n', Z[h])
+			scores[h] = self.S[h] @ self.V[h]
 
-		return np.concatenate(Z, axis=1)
+		return np.concatenate(scores, axis=-1)
 
 	def backward(self, dl):
-		dZ = np.split(dl, self.H, axis=1)
+		dScores = np.split(dl, self.H, axis=-1)
 		dQ = [None for h in range(self.H)]
 		dK = [None for h in range(self.H)]
 		dV = [None for h in range(self.H)]
 
 		for h in range(self.H):
 			# dropout backprop?
-			dV[h] = self.S[h].T @ dZ[h]
+			# S.T @ dl
+			dV[h] = np.moveaxis(self.S[h], -1, -2) @ dScores[h]
 
-			dZ[h] = dZ[h]@self.V[h].T
-			dZ[h] = dZ[h] * self.backward_mask
-			dZ[h] = dZ[h]@ (self.S[h]*(1-self.S[h]))
+			# dl @ V.T
+			dScores[h] = dScores[h] @ np.moveaxis(self.V[h], -1, -2)
+			dScores[h] = dScores[h] * self.backward_mask
+			dScores[h] = dScores[h] @ (self.S[h]*(1-self.S[h]))
 
-			dK[h] = (self.Q[h].T@dZ[h] * self.d_k).T
-			dQ[h] = dZ[h]@self.K[h] * self.d_k
+			# ( Q.T @ dl / Q.shape[-1] ).T
+			dK[h] = np.moveaxis(
+				np.moveaxis(self.Q[h], -1, -2) @ dScores[h] * self.d_k,
+				-1, -2
+			)
+			dQ[h] = dScores[h] @ self.K[h] * self.d_k
 
-		dQ = np.concatenate(dQ, axis=1)
-		dK = np.concatenate(dK, axis=1)
-		dV = np.concatenate(dV, axis=1)
+		dQ = np.concatenate(dQ, axis=-1)
+		dK = np.concatenate(dK, axis=-1)
+		dV = np.concatenate(dV, axis=-1)
 
-		return np.concatenate([dQ, dK, dV], axis=1)
+		return np.concatenate([dQ, dK, dV], axis=-1)
