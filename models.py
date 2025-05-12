@@ -101,7 +101,7 @@ class Decoder_model:
 			self.W_FC2[n].w_optim.lr = lr
 			self.W_FC2[n].b_optim.lr = lr
 
-	def forward(self, index_list, target_list, phase='train'):
+	def forward(self, index_list, target_list=None, phase='train'):
 		"""
 		index_list : 2D list for training and 1D list for evaluation
 		target_list: 2D list, is used during train phase only

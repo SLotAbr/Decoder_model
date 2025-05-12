@@ -45,7 +45,7 @@ class token_embedding:
 		)
 		for b in range(self.batch_size):
 			for c in range(self.context_size):
-				dTE[b][self.input_indexes[c]] += dX[b][c]
+				dTE[b][self.input_indexes[b][c]] += dX[b][c]
 
 		dTE += dTE_linear
 		
@@ -69,8 +69,13 @@ class token_embedding:
 		return x@self.TE_table.T
 
 	def linear_backward(self, dl):
-		# Returns derivatives for input signal and TE_table (dl/dx and dl/dw)
-		return dl@self.TE_table, (self.input_field.T@dl).T
+		dx = dl@self.TE_table
+		# ( input_field.T@dl ).T
+		dw = np.moveaxis(
+				np.moveaxis(self.input_field, -1, -2) @ dl,
+				-1, -2
+			)
+		return dx, dw
 
 	def save_weights(self, path):
 		with open(path, 'wb') as f:
