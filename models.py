@@ -11,16 +11,17 @@ from tools.optimizers import AdaM
 
 class Decoder_model:
 	def __init__(self, 
+		batch_size, 
 		context_size, 
 		vocabulary_size, 
 		d_model, 
 		H, 
 		N, 
-		optim_param, 
+		optim_param,
 		weight_decay
 	):
 		self.TE = nn.token_embedding(
-			vocabulary_size, d_model, context_size, optim_param
+			batch_size, vocabulary_size, d_model, context_size, optim_param
 		)
 		self.PE = positional_encoding(context_size, d_model)
 
@@ -37,30 +38,30 @@ class Decoder_model:
 		for n in range(N):
 			self.Attention_LayerNorm[n] = nn.LayerNormalization(context_size)
 			self.W_attention[n] = nn.Linear(
-				d_model, d_model*3, optim_param, weight_decay
+				d_model, d_model*3, optim_param, batch_size, weight_decay
 			)
 			self.MH_attention[n] = nn.MH_attention_mechanism(
-				context_size, d_model, H
+				batch_size, context_size, d_model, H
 			)
 			self.W_heads_projection[n] = nn.Linear(
-				d_model, d_model, optim_param, weight_decay
+				d_model, d_model, optim_param, batch_size, weight_decay
 			)
 
 			self.FC_LayerNorm[n] = nn.LayerNormalization(context_size)
 			self.W_FC1[n] = nn.Linear(
-				d_model, d_model*4, optim_param, weight_decay
+				d_model, d_model*4, optim_param, batch_size, weight_decay
 			)
 			self.activation[n] = nn.ReLU()
 			self.W_FC2[n] = nn.Linear(
-				d_model*4, d_model, optim_param, weight_decay
+				d_model*4, d_model, optim_param, batch_size, weight_decay
 			)
 
 		self.final_LayerNorm = nn.LayerNormalization(context_size)
 		self.Output_token_probabilities = None
+		self.batch_size = batch_size
 		self.context_size = context_size
 		self.N = N
 		self.vocabulary_size = vocabulary_size
-		self.residual_backprop = np.ones((context_size, d_model))
 
 	def save_parameters(self, folder):
 		# The folder must end on '/'!
@@ -100,25 +101,22 @@ class Decoder_model:
 			self.W_FC2[n].w_optim.lr = lr
 			self.W_FC2[n].b_optim.lr = lr
 
-
 	def forward(self, index_list, target_list, phase='train'):
-		# index_list and target_list must be 1D array
-		# We use target_list only during training, so it's 
-		# excessive to give the array during evaluation
-		assert len(index_list) <= self.context_size,\
-			"This implementation does not support sequences bigger than train context_size"
-		# Is used for backward pass calculation
+		"""
+		index_list : 2D list for training and 1D list for evaluation
+		target_list: 2D list, is used during train phase only
+		"""
+		assert len(index_list) <= self.context_size
 		self.target_list = target_list
 
+		# [B; C] -> [B; C; d_model]
+		# 	 [C] -> [C; d_model]
 		X = self.TE(index_list)
 		if phase=='train':
 			X += self.PE
-			# dropout?
-			context_size = self.context_size
-		else:
+		else: # phase == 'eval'
 			X += self.PE[:len(index_list)]
-			# dropout?
-			context_size = X.shape[0]
+		# dropout?
 
 		for n in range(self.N):
 			X_sublayer = self.Attention_LayerNorm[n](X, phase)
@@ -141,27 +139,30 @@ class Decoder_model:
 
 		if phase =='train':
 			loss_value=0
-			for i in range(len(target_list)):
-				loss_value -= np.log(
-					self.Output_token_probabilities[i][target_list[i]]
-				)
-				# loss_value += lambda * sum(weight ** 2)
+			for b in range(self.batch_size):
+				for c in range(self.context_size):
+					loss_value -= np.log(
+						# B, C, V
+						self.Output_token_probabilities[b][c][target_list[b][c]]
+					)
+			loss_value /= self.context_size
+			loss_value /= self.batch_size
+			# loss_value += lambda * sum(weight ** 2)
 			return loss_value
 		else: # phase == 'eval'
-			## top-1 token probability
-			# return np.argmax(self.Output_token_probabilities[-1]) #, axis=1)
-			# return np.random.choice(range(self.vocabulary_size), \
-			# 	p=self.Output_token_probabilities[-1].ravel())
 			## top-k token probabilities
 			k = 10
+			# C, V
 			ixs = np.argpartition(self.Output_token_probabilities[-1], -k)[-k:]
 			probs = softmax(self.Output_token_probabilities[-1][ixs])
 			return np.random.choice(ixs, p=probs)
 
 	def backward(self):
 		dl = self.Output_token_probabilities
-		for i in range(len(self.target_list)):
-			dl[i][self.target_list[i]] -= 1
+		for b in range(self.batch_size):
+			for c in range(self.context_size):
+				# B, C, V
+				dl[b][c][self.target_list[b][c]] -= 1
 
 		dl, TE_grad = self.TE.linear_backward(dl)
 		dl = self.final_LayerNorm.backward(dl)
@@ -171,16 +172,12 @@ class Decoder_model:
 			dl = self.activation[n].backward(dl)
 			dl = self.W_FC1[n].backward(dl)
 			dl = self.FC_LayerNorm[n].backward(dl)
-			dl += self.residual_backprop
+			dl += 1 # residual backprop: dx/dx
 
 			dl = self.W_heads_projection[n].backward(dl)
 			dl = self.MH_attention[n].backward(dl)
 			dl = self.W_attention[n].backward(dl)
 			dl = self.Attention_LayerNorm[n].backward(dl)
-			dl += self.residual_backprop
+			dl += 1 # residual backprop: dx/dx
 
 		self.TE.update_weights(dl, TE_grad)
-	
-	# ???
-	def evaluation(self):
-		pass

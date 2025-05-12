@@ -1,9 +1,7 @@
 import numpy as np
 
 
-# Mini-batch update:
-# Batch dim is required ( [batch_size; context_size, embedding_size] )
-def positional_encoding(batch_size, context_size, embedding_size, n=1e4):
+def positional_encoding(context_size, embedding_size, n=1e4):
 	position_value = np.zeros((context_size, embedding_size))
 	for pos in range(context_size):
 		for i in range(int(embedding_size/2)):
