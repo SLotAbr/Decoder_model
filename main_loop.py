@@ -129,13 +129,9 @@ while True:
 		# 		[data_lenght, step_num, train_i, loss, lr], f
 		# 	)
 
-		index_list = [np.random.randint(0, vocabulary_size)]
-		for _ in range(context_size):
-			index_list.append(
-				model.forward(index_list, phase='eval')
-			)
-
-		eval_sample = ''.join(indexes_transform[i] for i in index_list)
+		eval_sample = ''.join(
+			indexes_transform[i] for i in model.evaluation()
+		)
 		print('--------\n %s \n--------' % (eval_sample, ))
 		print(
 			'epoch: %d, iter: %d/%d, loss: %f, lr: %g' \

@@ -196,3 +196,31 @@ class Decoder_model:
 
 		dl = self.embedding_dropout.backward(dl)
 		self.TE.update_weights(dl, TE_grad)
+
+	# + top_k, + generation_temperature
+	def evaluation(self, 
+		index_list = [], 
+		# To generate [context_size+1] output elements, we will use 
+		# only [context_size] input elements
+		generation_len = self.context_size + 1
+	):
+		input_len = len(index_list)
+		assert input_len <= generation_len
+		if input_len == 0:
+			index_list.append(
+				np.random.randint(0, self.vocabulary_size)
+			)
+
+		while (sample_len := len(index_list)) < generation_len:
+			if sample_len > self.context_size:
+				# If the context is too long, the model will forget
+				# its beginning
+				shift = sample_len - self.context_size
+				context_entry = index_list[shift:]
+			else:
+				context_entry = index_list
+			index_list.append(
+				self.forward(context_entry, phase='eval')
+			)
+
+		return index_list
