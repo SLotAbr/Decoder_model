@@ -15,6 +15,7 @@ class Decoder_model:
 		context_size, 
 		vocabulary_size, 
 		d_model, 
+		drop_prob, 
 		H, 
 		N, 
 		optim_param,
@@ -24,16 +25,21 @@ class Decoder_model:
 			batch_size, vocabulary_size, d_model, context_size, optim_param
 		)
 		self.PE = positional_encoding(context_size, d_model)
+		self.embedding_dropout = nn.Dropout(
+			(batch_size, context_size, d_model), drop_prob
+		)
 
+		self.Attention_LayerNorm = [None for n in range(N)]
 		self.W_attention = [None for n in range(N)]
 		self.MH_attention = [None for n in range(N)]
 		self.W_heads_projection = [None for n in range(N)]
-		self.Attention_LayerNorm = [None for n in range(N)]
+		self.Attention_dropout = [None for n in range(N)]
 
+		self.FC_LayerNorm = [None for n in range(N)]
 		self.W_FC1 = [None for n in range(N)]
 		self.activation = [None for n in range(N)]
 		self.W_FC2 = [None for n in range(N)]
-		self.FC_LayerNorm = [None for n in range(N)]
+		self.FFN_dropout = [None for n in range(N)]
 
 		for n in range(N):
 			self.Attention_LayerNorm[n] = nn.LayerNormalization(context_size)
@@ -41,10 +47,13 @@ class Decoder_model:
 				d_model, d_model*3, optim_param, batch_size, weight_decay
 			)
 			self.MH_attention[n] = nn.MH_attention_mechanism(
-				batch_size, context_size, d_model, H
+				batch_size, context_size, d_model, H, drop_prob
 			)
 			self.W_heads_projection[n] = nn.Linear(
 				d_model, d_model, optim_param, batch_size, weight_decay
+			)
+			self.Attention_dropout[n] = nn.Dropout(
+				(batch_size, context_size, d_model), drop_prob
 			)
 
 			self.FC_LayerNorm[n] = nn.LayerNormalization(context_size)
@@ -54,6 +63,9 @@ class Decoder_model:
 			self.activation[n] = nn.ReLU()
 			self.W_FC2[n] = nn.Linear(
 				d_model*4, d_model, optim_param, batch_size, weight_decay
+			)
+			self.FFN_dropout[n] = nn.Dropout(
+				(batch_size, context_size, d_model), drop_prob
 			)
 
 		self.final_LayerNorm = nn.LayerNormalization(context_size)
@@ -112,32 +124,32 @@ class Decoder_model:
 		# [B; C] -> [B; C; d_model]
 		# 	 [C] -> [C; d_model]
 		X = self.TE(index_list)
-		if phase=='train':
+		if phase == 'train':
 			X += self.PE
 		else: # phase == 'eval'
 			X += self.PE[:len(index_list)]
-		# dropout?
+		X = self.embedding_dropout(X, phase)
 
 		for n in range(self.N):
 			X_sublayer = self.Attention_LayerNorm[n](X, phase)
 			X_sublayer = self.W_attention[n](X_sublayer)
 			X_sublayer = self.MH_attention[n](X_sublayer, phase) # <- dropout?
 			X_sublayer = self.W_heads_projection[n](X_sublayer)
-			# dropout?
+			X_sublayer = self.Attention_dropout[n](X_sublayer, phase)
 			X += X_sublayer
 
 			X_sublayer = self.FC_LayerNorm[n](X, phase)
 			X_sublayer = self.W_FC1[n](X_sublayer)
 			X_sublayer = self.activation[n](X_sublayer)
 			X_sublayer = self.W_FC2[n](X_sublayer)
-			# dropout?
+			X_sublayer = self.FFN_dropout[n](X_sublayer, phase)
 			X += X_sublayer
 
 		X = self.final_LayerNorm(X)
 		X = self.TE.linear(X)
 		self.Output_token_probabilities = softmax(X)
 
-		if phase =='train':
+		if phase == 'train':
 			loss_value=0
 			for b in range(self.batch_size):
 				for c in range(self.context_size):
@@ -168,16 +180,19 @@ class Decoder_model:
 		dl = self.final_LayerNorm.backward(dl)
 
 		for n in reversed(range(self.N)):
+			dl = self.FFN_dropout[n].backward(dl)
 			dl = self.W_FC2[n].backward(dl)
 			dl = self.activation[n].backward(dl)
 			dl = self.W_FC1[n].backward(dl)
 			dl = self.FC_LayerNorm[n].backward(dl)
 			dl += 1 # residual backprop: dx/dx
 
+			dl = self.Attention_dropout[n].backward(dl)
 			dl = self.W_heads_projection[n].backward(dl)
 			dl = self.MH_attention[n].backward(dl)
 			dl = self.W_attention[n].backward(dl)
 			dl = self.Attention_LayerNorm[n].backward(dl)
 			dl += 1 # residual backprop: dx/dx
 
+		dl = self.embedding_dropout.backward(dl)
 		self.TE.update_weights(dl, TE_grad)

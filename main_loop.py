@@ -32,7 +32,8 @@ if len(os.listdir(path=save_folder)) != 0:
 else:
 	epoch, batch, loss = -1, 0, 0
 	context_size, d_model, H, N = 64, 64, 2, 4 # 32, 64, 2, 3
-	batch_size = 8
+	batch_size = 16
+	drop_prob = 0.1
 	weight_decay = 0.1
 
 	source = open('input.txt', 'r').read()
@@ -77,6 +78,7 @@ else:
 		context_size, 
 		vocabulary_size, 
 		d_model, 
+		drop_prob,
 		H, N, 
 		optim_param, 
 		weight_decay

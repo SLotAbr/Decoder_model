@@ -141,6 +141,31 @@ class ReLU:
 		return dl * self.mask
 
 
+class Dropout:
+	def __init__(self, input_shape, drop_prob):
+		assert 0 <= drop_prob < 1
+		# (B, C, d_model) or (B, C, C)
+		self.input_shape = input_shape
+		self.drop_prob = drop_prob
+		self.retention_prob = 1 - drop_prob
+
+	def __call__(self, x, phase="train"):
+		if phase == "train":
+			self.mask = np.random.choice(
+				[0, 1], 
+				size = self.input_shape, 
+				p = [self.drop_prob, self.retention_prob],
+				# replace = True
+			)
+			x *= self.mask
+		else: # phase == "eval"
+			x *= self.retention_prob
+		return x
+
+	def backward(self, dl):
+		return dl * self.mask
+
+
 class LayerNormalization:
 	# The initialization is useless without additional variables such
 	# as betta and gamma
@@ -166,7 +191,13 @@ class MH_attention_mechanism:
 	"""
 	Causally masked multihead self-attention
 	"""
-	def __init__(self, batch_size, context_size, d_model, H):
+	def __init__(self, 
+		batch_size, 
+		context_size, 
+		d_model, 
+		H, 
+		drop_prob = None
+	):
 		self.d_k = 1 / np.sqrt(d_model/H)
 		# self.context_size = context_size
 		self.H = H
@@ -174,6 +205,12 @@ class MH_attention_mechanism:
 			np.ones((batch_size, context_size, context_size))
 		)
 		self.mask = self.backward_mask == 0
+		if drop_prob:
+			self.att_dropout = []
+			for h in range(H):
+				self.att_dropout.append(Dropout(
+					(batch_size, context_size, context_size), drop_prob
+				))
 	
 	def __call__(self, x, phase='train'):
 		self.Q, self.K, self.V = np.split(x, 3, axis=-1)
@@ -200,7 +237,8 @@ class MH_attention_mechanism:
 
 			self.S[h][mask] = -1e12
 			self.S[h] = softmax(self.S[h])
-			# dropout?
+			self.S[h] = self.att_dropout[h](self.S[h], phase)
+
 			scores[h] = self.S[h] @ self.V[h]
 
 		return np.concatenate(scores, axis=-1)
@@ -212,7 +250,6 @@ class MH_attention_mechanism:
 		dV = [None for h in range(self.H)]
 
 		for h in range(self.H):
-			# dropout backprop?
 			# S.T @ dl
 			dV[h] = np.moveaxis(self.S[h], -1, -2) @ dScores[h]
 
@@ -220,6 +257,7 @@ class MH_attention_mechanism:
 			dScores[h] = dScores[h] @ np.moveaxis(self.V[h], -1, -2)
 			dScores[h] = dScores[h] * self.backward_mask
 			dScores[h] = dScores[h] @ (self.S[h]*(1-self.S[h]))
+			dScores[h] = self.att_dropout[h].backward(dScores[h])
 
 			# ( Q.T @ dl / Q.shape[-1] ).T
 			dK[h] = np.moveaxis(
